@@ -203,6 +203,39 @@ class CacheStoreTest < ActionDispatch::IntegrationTest
     end
   end
 
+  def test_doesnt_generate_same_sid
+    expected_values = [
+      +"eed45f3da20b5c4da3bc3b160f996315",
+      +"eed45f3da20b5c4da3bc3b160f996315",
+      +"eed45f3da20b5c4da3bc3b160f996316",
+    ]
+    counter = -1
+    hex_generator = proc do
+      counter += 1
+      expected_values[counter]
+    end
+
+    SecureRandom.stub(:hex, hex_generator) do
+      with_test_route_set do
+        get "/set_session_value"
+        assert_response :success
+        assert cookies["_session_id"]
+
+        first_sid = Rack::Session::SessionId.new(cookies["_session_id"])
+        assert_equal expected_values[0], first_sid.public_id
+
+        cookies.delete("_session_id")
+
+        get "/set_session_value"
+        assert_response :success
+        assert cookies["_session_id"]
+
+        second_sid = Rack::Session::SessionId.new(cookies["_session_id"])
+        assert_equal expected_values[2], second_sid.public_id
+      end
+    end
+  end
+
   private
     def app
       @app ||= self.class.build_app do |middleware|

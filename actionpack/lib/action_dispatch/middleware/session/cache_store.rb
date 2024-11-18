@@ -29,7 +29,7 @@ module ActionDispatch
       # Get a session from the cache.
       def find_session(env, sid)
         unless sid && (session = get_session_with_fallback(sid))
-          sid, session = generate_sid, {}
+          sid, session = generate_unique_sid, {}
         end
         [sid, session]
       end
@@ -49,7 +49,7 @@ module ActionDispatch
       def delete_session(env, sid, options)
         @cache.delete(cache_key(sid.private_id))
         @cache.delete(cache_key(sid.public_id))
-        generate_sid
+        generate_unique_sid
       end
 
       private
@@ -60,6 +60,15 @@ module ActionDispatch
 
         def get_session_with_fallback(sid)
           @cache.read(cache_key(sid.private_id)) || @cache.read(cache_key(sid.public_id))
+        end
+
+        def generate_unique_sid
+          loop do
+            sid = generate_sid
+            key = cache_key(sid.private_id)
+
+            break sid if @cache.write(key, {}, unless_exist: true, expires_in: default_options[:expire_after])
+          end
         end
     end
   end
